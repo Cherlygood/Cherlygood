@@ -282,7 +282,37 @@ type ProductType = {
     gallery: string[];
   };
   options: {
-    groups: Array<OptionGroupType>;
+    groups: Array<{
+      id: number;
+      name: string;
+      displayOrder: number;
+      values: Array<{
+        id: number;
+        value: string;
+        isActive: boolean;
+      }>;
+      // Add size chart directly to option group
+      sizeChart?: {
+        centimeters?: {
+          columns: Array<{
+            label: string;
+            order: number;
+          }>;
+          rows: Array<{
+            [key: string]: string;
+          }>;
+        };
+        inches?: {
+          columns: Array<{
+            label: string;
+            order: number;
+          }>;
+          rows: Array<{
+            [key: string]: string;
+          }>;
+        };
+      };
+    }>;
     config: {
       chaining: {
         enabled: boolean;

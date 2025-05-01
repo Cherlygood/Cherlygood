@@ -95,7 +95,6 @@ export function OptionsOverlay({
     };
   };
 }) {
-  // **State Declarations**
   const [loading, setLoading] = useState<boolean>(false);
 
   const showAlert = useAlertStore((state) => state.showAlert);
@@ -105,7 +104,6 @@ export function OptionsOverlay({
   const isOverlayVisible = useOverlayStore((state) => state.pages.editProduct.overlays.options.isVisible);
   const setPreventBodyOverflowChange = useBodyOverflowStore((state) => state.setPreventBodyOverflowChange);
 
-  // **Body Overflow Effect**
   useEffect(() => {
     if (isOverlayVisible) {
       document.body.style.overflow = "hidden";
@@ -122,7 +120,6 @@ export function OptionsOverlay({
     };
   }, [isOverlayVisible, setPreventBodyOverflowChange]);
 
-  // **Initialize Option Groups**
   const [optionGroups, setOptionGroups] = useState<OptionGroup[]>(() => {
     if (!data.options || !data.options.groups) return [];
     return data.options.groups.map((group) => ({
@@ -134,7 +131,6 @@ export function OptionsOverlay({
     }));
   });
 
-  // **Initialize Chaining Configuration**
   const [chainingConfig, setChainingConfig] = useState<ChainingConfig>(() => {
     const config = data.options?.config?.chaining;
     if (!config || !config.enabled || !config.relationships || config.relationships.length === 0) {
@@ -148,7 +144,6 @@ export function OptionsOverlay({
     };
   });
 
-  // **Initialize Availability Matrix**
   const [availabilityMatrix, setAvailabilityMatrix] = useState<AvailabilityMatrix>(() => {
     const config = data.options?.config?.chaining;
     if (!config || !config.enabled || !config.relationships || config.relationships.length === 0) return {};
@@ -160,7 +155,6 @@ export function OptionsOverlay({
     return matrix;
   });
 
-  // **Initialize Size Chart Group ID**
   const [sizeChartGroupId, setSizeChartGroupId] = useState<number | null>(() => {
     const providedId = data.options.sizeChartGroupId;
     if (providedId) {
@@ -183,13 +177,11 @@ export function OptionsOverlay({
   const [rowsCount, setRowsCount] = useState<number>(0);
   const [columnsCount, setColumnsCount] = useState<number>(0);
 
-  // **Initialize Size Chart Counts**
   useEffect(() => {
     setRowsCount(tableData[activeTab].rows.length);
     setColumnsCount(tableData[activeTab].columns.length);
   }, [tableData, activeTab]);
 
-  // **Ensure Size Chart Group ID Consistency**
   useEffect(() => {
     if (sizeChartEnabled) {
       const sizeGroup = optionGroups.find((group) => group.name.toLowerCase() === "size");
@@ -208,20 +200,14 @@ export function OptionsOverlay({
     }
   }, [optionGroups, sizeChartEnabled, showAlert]);
 
-  // **Admin State**
   const [newOptionValues, setNewOptionValues] = useState<{ [key: number]: string }>({});
   const [editingName, setEditingName] = useState<number | null>(null);
   const [editNameValue, setEditNameValue] = useState<string>("");
   const [newGroupName, setNewGroupName] = useState<string>("");
   const [collapsedGroups, setCollapsedGroups] = useState<{ [key: number]: boolean }>({});
-
-  // **Public-Facing State**
   const [selectedOptions, setSelectedOptions] = useState<{ [key: number]: number }>({});
-
-  // **Track Disabled Parent Options**
   const [disabledParentOptions, setDisabledParentOptions] = useState<number[]>([]);
 
-  // **Helper Functions**
   const findGroup = (groupId: number): OptionGroup | undefined => optionGroups.find((group) => group.id === groupId);
 
   useEffect(() => {
@@ -260,7 +246,6 @@ export function OptionsOverlay({
     }
   }, [chainingConfig.enabled, optionGroups]);
 
-  // **Admin Functions**
   const addOptionGroup = () => {
     if (newGroupName.trim() === "") return;
     const newGroup: OptionGroup = { id: Date.now(), name: newGroupName, options: [] };
@@ -534,38 +519,62 @@ export function OptionsOverlay({
 
   const handleSave = async () => {
     setLoading(true);
+
+    // Format the options data according to ProductType structure
+    const formattedGroups = optionGroups.map((group, index) => {
+      const baseGroup = {
+        id: group.id,
+        name: group.name,
+        displayOrder: index,
+        values: group.options.map((opt) => ({
+          id: opt.id,
+          value: opt.value,
+          isActive: opt.isActive,
+        })),
+      };
+
+      // If this is the size group and size chart is enabled, add the size chart data
+      if (sizeChartEnabled && sizeChartGroupId === group.id) {
+        return {
+          ...baseGroup,
+          sizeChart: {
+            inches: tableData.inches,
+            centimeters: tableData.centimeters,
+          },
+        };
+      }
+
+      return baseGroup;
+    });
+
+    // Format chaining relationships
+    const relationships = [];
+    if (chainingConfig.enabled && chainingConfig.parentGroupId !== null && chainingConfig.childGroupId !== null) {
+      const constraints: { [key: string]: number[] } = {};
+      Object.keys(availabilityMatrix).forEach((parentId) => {
+        constraints[parentId] = availabilityMatrix[Number(parentId)] || [];
+      });
+
+      relationships.push({
+        parentGroupId: chainingConfig.parentGroupId,
+        childGroupId: chainingConfig.childGroupId,
+        constraints,
+      });
+    }
+
     const updatedData = {
       id: data.id,
       options: {
-        groups: optionGroups.map((group, index) => ({
-          id: group.id,
-          name: group.name,
-          displayOrder: index + 1,
-          values: group.options.map((option) => ({ id: option.id, value: option.value, isActive: option.isActive })),
-        })),
+        groups: formattedGroups,
         config: {
           chaining: {
             enabled: chainingConfig.enabled,
-            relationships:
-              chainingConfig.enabled && chainingConfig.parentGroupId !== null && chainingConfig.childGroupId !== null
-                ? [
-                    {
-                      parentGroupId: chainingConfig.parentGroupId,
-                      childGroupId: chainingConfig.childGroupId,
-                      constraints: Object.keys(availabilityMatrix).reduce((acc, key) => {
-                        const numKey = Number(key);
-                        acc[key] = availabilityMatrix[numKey];
-                        return acc;
-                      }, {} as { [key: string]: number[] }),
-                    },
-                  ]
-                : [],
+            relationships,
           },
         },
-        sizes: sizeChartEnabled && sizeChartGroupId !== null ? tableData : undefined,
-        sizeChartGroupId: sizeChartEnabled ? sizeChartGroupId : null,
       },
     };
+
     try {
       const result = await UpdateProductAction(updatedData);
       showAlert({ message: result.message, type: result.type });
